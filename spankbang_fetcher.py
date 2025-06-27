@@ -1,63 +1,56 @@
 import aiohttp
-from bs4 import BeautifulSoup 
-import random
+from bs4 import BeautifulSoup
 
-SPANKBANG_BASE = "https://spankbang.party"
-CATEGORIES = [
-    "romantic", "couples", "softcore", "sensual", "passionate",
-    "intimate", "massage", "mature", "schoolgirl", "exploration",
-    "brunette", "blonde", "redhead", "closeup", "pov"
-]
-
-async def fetch_spankbang_video(category=None, interaction=None):
-    if not category or category not in CATEGORIES:
-        category = random.choice(CATEGORIES)
-
-    url = f"{SPANKBANG_BASE}/s/{category}/1/"
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept-Language": "en-US,en;q=0.9"
-    }
-
+async def fetch_spankbang_video(category):
     try:
+        url = f"https://spankbang.com/s/{category.replace(' ', '+')}"
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                if resp.status != 200:
-                    print(f"❌ SpankBang fetch failed with status {resp.status}")
+            async with session.get(url) as response:
+                if response.status != 200:
                     return None
+                html = await response.text()
 
-                html = await resp.text()
-                print("[DEBUG HTML START]\n", html[:1500], "\n[DEBUG HTML END]")
-                soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, "html.parser")
+        video_card = soup.select_one(".video-thumb")
+        if not video_card:
+            return None
 
-                video_cards = soup.select("a[href^='/']:has(img)") or soup.select(".video_item a")
+        video_page_link = "https://spankbang.com" + video_card.get("href")
+        thumbnail_url = video_card.select_one("img").get("src") if video_card.select_one("img") else None
+        title = video_card.get("title", "Untitled Clip")
 
-                if not video_cards:
-                    print("❌ No valid <a> tags with thumbnails found on SpankBang.")
+        # Now fetch the actual video URL
+        async with aiohttp.ClientSession() as session:
+            async with session.get(video_page_link) as video_response:
+                if video_response.status != 200:
                     return None
+                video_html = await video_response.text()
 
-                candidates = [a for a in video_cards if a.select_one("img") and a.get("href")]
-                if not candidates:
-                    print("❌ No thumbnails available for teaser candidates.")
-                    return None
+        video_soup = BeautifulSoup(video_html, "html.parser")
+        script_tag = video_soup.find("script", string=lambda s: "sources" in s if s else False)
 
-                chosen = random.choice(candidates)
-                video_url = SPANKBANG_BASE + chosen.get("href", "")
-                img = chosen.select_one("img")
+        if not script_tag:
+            return None
 
-                # Post the video link separately to trigger Discord preview if possible
-                if interaction:
-                    try:
-                        await interaction.channel.send(video_url)
-                    except Exception as send_error:
-                        print(f"[Post Clip URL Error] {send_error}")
+        # Try to extract mp4 URL from the sources JSON-like string
+        import re, json
+        sources_match = re.search(r'sources\s*:\s*(\[[^\]]+\])', script_tag.string)
+        if not sources_match:
+            return None
 
-                return {
-                    "title": img.get("alt", "NSFW Video"),
-                    "url": video_url,
-                    "thumbnail": img.get("data-src") or img.get("src") or ""
-                }
+        sources_json = sources_match.group(1).replace("'", '"')
+        sources = json.loads(sources_json)
+
+        video_url = next((src["src"] for src in sources if src["src"].endswith(".mp4")), None)
+        if not video_url:
+            return None
+
+        return {
+            "title": title,
+            "url": video_url,
+            "thumbnail": thumbnail_url or "https://spankbang.com/images/logo.png"
+        }
 
     except Exception as e:
-        print(f"[SpankBang Error] {e}")
+        print(f"[Fetch Clip Error] {e}")
         return None
