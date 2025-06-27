@@ -46,24 +46,33 @@ class AutoPost(commands.Cog):
 
         failures = 0
         while self.active_autoposts[guild_id][media_type]:
-            post = await fetch_func(category)
+            try:
+                post = await fetch_func(category)
 
-            if post:
-                failures = 0
-                embed = discord.Embed(title=post.get("title", media_type.title()), url=post.get("url"), color=discord.Color.dark_purple())
-                embed.set_image(url=post["thumbnail"] if media_type == "clip" else post["url"])
-                view = StopButton(guild_id, media_type)
-                await interaction.channel.send(embed=embed, view=view)
-            else:
-                failures += 1
-                await interaction.channel.send("⚠️ Failed to fetch content. Retrying in 12 seconds...", delete_after=10)
+                if post:
+                    embed = discord.Embed(
+                        title=post.get("title", media_type.title()),
+                        url=post.get("url"),
+                        color=discord.Color.dark_purple()
+                    )
+                    embed.set_image(url=post["thumbnail"] if media_type == "clip" else post["url"])
+                    view = StopButton(guild_id, media_type)
+                    await interaction.channel.send(embed=embed, view=view)
+                    failures = 0
+                else:
+                    failures += 1
+                    await interaction.channel.send("⚠️ Failed to fetch content. Retrying in 12 seconds...", delete_after=10)
 
                 if failures >= 3:
                     await interaction.channel.send(f"⚠️ Multiple failed fetches for {media_type}. Waiting and retrying...", delete_after=10)
-                    await asyncio.sleep(10)
                     failures = 0
+                    await asyncio.sleep(10)
 
-            await asyncio.sleep(12)
+                await asyncio.sleep(12)
+
+            except Exception as e:
+                print(f"[Autopost Error] {e}")
+                await asyncio.sleep(12)
             if post:
                 failures = 0
                 embed = discord.Embed(title=post.get("title", media_type.title()), url=post.get("url"), color=discord.Color.dark_purple())
