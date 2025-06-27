@@ -27,14 +27,12 @@ class AutopostStopView(discord.ui.View):
         self.active_types = active_types
 
         for media_type in active_types:
-            label = f"⏹️ Stop {media_type.capitalize()}"
             self.add_item(discord.ui.Button(
-                label=label,
+                label=f"⏹️ Stop {media_type.capitalize()}",
                 style=discord.ButtonStyle.red,
                 custom_id=f"stop_{media_type}"
             ))
 
-        # Always include Stop All
         self.add_item(discord.ui.Button(
             label="🛑 Stop All",
             style=discord.ButtonStyle.blurple,
@@ -45,31 +43,31 @@ class AutopostStopView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         return True
 
+    async def on_interaction(self, interaction: discord.Interaction):
+        cid = interaction.data.get("custom_id")
+        if not cid:
+            return
+
+        if cid == "stop_all":
+            # Stop everything immediately
+            tasks = [
+                self.stop_callback(self.guild_id, mt)
+                for mt in self.active_types
+            ]
+            await asyncio.gather(*tasks)
+            await interaction.followup.send("✅ All autoposts have been stopped.", ephemeral=True)
+        elif cid.startswith("stop_"):
+            media_type = cid.replace("stop_", "")
+            if media_type in self.active_types:
+                await self.stop_callback(self.guild_id, media_type)
+                await interaction.followup.send(f"✅ Stopped {media_type} autopost.", ephemeral=True)
+
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         await interaction.followup.send(f"❌ Error: {error}", ephemeral=True)
-
-    async def on_interaction(self, interaction: discord.Interaction):
-        try:
-            cid = interaction.data.get("custom_id")
-            if not cid:
-                return
-
-            if cid == "stop_all":
-                for media_type in self.active_types:
-                    await self.stop_callback(self.guild_id, media_type)
-                await interaction.followup.send("✅ Stopped all autoposts in this server.", ephemeral=True)
-
-            elif cid.startswith("stop_"):
-                media_type = cid.replace("stop_", "")
-                if media_type in self.active_types:
-                    await self.stop_callback(self.guild_id, media_type)
-                    await interaction.followup.send(f"✅ Stopped **{media_type}** autopost.", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ Failed to stop autopost: {e}", ephemeral=True)
 
 class AutoPost(commands.Cog):
     def __init__(self, bot):
