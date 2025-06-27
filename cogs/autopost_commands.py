@@ -24,7 +24,7 @@ class AutoPost(commands.Cog):
     def get_stop_view(self, media_type, guild_id):
         return StopButton(guild_id, media_type)
 
-    async def stop_autopost(self, guild_id: int, media_type: str):
+    async def stop_media_autopost(self, guild_id: int, media_type: str):
         if guild_id in self.active_autoposts:
             self.active_autoposts[guild_id][media_type] = False
 
@@ -110,7 +110,7 @@ class AutoPost(commands.Cog):
                 parts = interaction.data["custom_id"].split(":")
                 media_type = parts[1]
                 guild_id = int(parts[2])
-                await self.stop_autopost(guild_id, media_type)
+                await self.stop_media_autopost(guild_id, media_type)
                 await interaction.response.send_message(f"✅ Stopped autoposting **{media_type}**.", ephemeral=True)
             except Exception as e:
                 await interaction.response.send_message(f"❌ Failed to stop autopost: {e}", ephemeral=True)
