@@ -16,7 +16,8 @@ class StopButton(discord.ui.View):
     @discord.ui.button(label="⏹️ Stop", style=discord.ButtonStyle.red)
     async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.stop_callback(self.guild_id, self.media_type)
-        await interaction.response.send_message(f"✅ Stopped autoposting **{self.media_type}**.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        await interaction.followup.send(f"✅ Stopped autoposting **{self.media_type}**.", ephemeral=True)
         self.stop()
 
 class AutoPost(commands.Cog):
