@@ -1,11 +1,14 @@
 import aiohttp
 from bs4 import BeautifulSoup
+import re
+import json
 
 async def fetch_spankbang_video(category):
     try:
-        url = f"https://spankbang.com/s/{category.replace(' ', '+')}"
+        search_url = f"https://spankbang.com/s/{category.replace(' ', '+')}"
+
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
+            async with session.get(search_url) as response:
                 if response.status != 200:
                     return None
                 html = await response.text()
@@ -19,7 +22,7 @@ async def fetch_spankbang_video(category):
         thumbnail_url = video_card.select_one("img").get("src") if video_card.select_one("img") else None
         title = video_card.get("title", "Untitled Clip")
 
-        # Now fetch the actual video URL
+        # Fetch video page for stream link
         async with aiohttp.ClientSession() as session:
             async with session.get(video_page_link) as video_response:
                 if video_response.status != 200:
@@ -28,12 +31,9 @@ async def fetch_spankbang_video(category):
 
         video_soup = BeautifulSoup(video_html, "html.parser")
         script_tag = video_soup.find("script", string=lambda s: "sources" in s if s else False)
-
         if not script_tag:
             return None
 
-        # Try to extract mp4 URL from the sources JSON-like string
-        import re, json
         sources_match = re.search(r'sources\s*:\s*(\[[^\]]+\])', script_tag.string)
         if not sources_match:
             return None

@@ -46,8 +46,8 @@ class AutoPost(commands.Cog):
 
         failures = 0
         while self.active_autoposts[guild_id][media_type]:
-            await asyncio.sleep(12)
             post = await fetch_func(category)
+            await asyncio.sleep(12)
             if post:
                 failures = 0
                 embed = discord.Embed(title=post.get("title", media_type.title()), url=post.get("url"), color=discord.Color.dark_purple())
@@ -57,6 +57,7 @@ class AutoPost(commands.Cog):
             else:
                 failures += 1
                 await interaction.channel.send("⚠️ Failed to fetch content. Retrying in 12 seconds...")
+                await asyncio.sleep(12)
 
                 if failures >= 3:
                     await interaction.channel.send(f"⚠️ Multiple failed fetches for {media_type}. Waiting and retrying...")
