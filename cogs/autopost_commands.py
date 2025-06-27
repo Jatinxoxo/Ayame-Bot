@@ -64,7 +64,7 @@ class AutoPost(commands.Cog):
         if category not in NSFW_IMAGE_CATEGORIES:
             await interaction.response.send_message("❌ Invalid image category.", ephemeral=True)
             return
-        await self.send_autopost(interaction, category, fetch_image, "image")
+        asyncio.create_task(self.send_autopost(interaction, category, fetch_image, "image"))
 
     @app_commands.command(name="autopost_gif", description="Auto-post NSFW gifs every 12 seconds.")
     @app_commands.describe(category="Choose a category")
@@ -72,7 +72,7 @@ class AutoPost(commands.Cog):
         if category not in NSFW_GIF_CATEGORIES:
             await interaction.response.send_message("❌ Invalid gif category.", ephemeral=True)
             return
-        await self.send_autopost(interaction, category, fetch_gif, "gif")
+        asyncio.create_task(self.send_autopost(interaction, category, fetch_gif, "gif"))
 
     @app_commands.command(name="autopost_clip", description="Auto-post NSFW video clips every 12 seconds.")
     @app_commands.describe(category="Choose a category")
@@ -80,7 +80,7 @@ class AutoPost(commands.Cog):
         if category not in NSFW_CLIP_CATEGORIES:
             await interaction.response.send_message("❌ Invalid clip category.", ephemeral=True)
             return
-        await self.send_autopost(interaction, category, fetch_spankbang_video, "clip")
+        asyncio.create_task(self.send_autopost(interaction, category, fetch_spankbang_video, "clip"))
 
 async def setup(bot):
     await bot.add_cog(AutoPost(bot))
