@@ -46,6 +46,7 @@ class AutoPost(commands.Cog):
 
         failures = 0
         while self.active_autoposts[guild_id][media_type]:
+            await asyncio.sleep(12)
             post = await fetch_func(category)
             if post:
                 failures = 0
@@ -58,10 +59,8 @@ class AutoPost(commands.Cog):
                 await interaction.channel.send("⚠️ Failed to fetch content. Retrying in 12 seconds...")
 
                 if failures >= 3:
-                    await interaction.channel.send(f"⚠️ Multiple failed fetches for {media_type}. Attempting to restart...")
-                    self.active_autoposts[guild_id][media_type] = False
-                    await asyncio.sleep(5)
-                    self.active_autoposts[guild_id][media_type] = True
+                    await interaction.channel.send(f"⚠️ Multiple failed fetches for {media_type}. Waiting and retrying...")
+                    await asyncio.sleep(10)
                     failures = 0
 
                 await asyncio.sleep(12)
