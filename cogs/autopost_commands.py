@@ -58,9 +58,15 @@ class AutoPost(commands.Cog):
                 await interaction.channel.send("⚠️ Failed to fetch content. Trying again in 12 seconds...")
             await asyncio.sleep(12)
 
+    def is_nsfw_channel(self, interaction: discord.Interaction) -> bool:
+        return isinstance(interaction.channel, discord.TextChannel) and interaction.channel.is_nsfw()
+
     @app_commands.command(name="autopost_image", description="Auto-post NSFW images every 12 seconds.")
     @app_commands.describe(category="Choose a category")
     async def autopost_image(self, interaction: discord.Interaction, category: str):
+        if not self.is_nsfw_channel(interaction):
+            await interaction.response.send_message("❌ You can only use this command in NSFW channels.", ephemeral=True)
+            return
         if category not in NSFW_IMAGE_CATEGORIES:
             await interaction.response.send_message("❌ Invalid image category.", ephemeral=True)
             return
@@ -69,6 +75,9 @@ class AutoPost(commands.Cog):
     @app_commands.command(name="autopost_gif", description="Auto-post NSFW gifs every 12 seconds.")
     @app_commands.describe(category="Choose a category")
     async def autopost_gif(self, interaction: discord.Interaction, category: str):
+        if not self.is_nsfw_channel(interaction):
+            await interaction.response.send_message("❌ You can only use this command in NSFW channels.", ephemeral=True)
+            return
         if category not in NSFW_GIF_CATEGORIES:
             await interaction.response.send_message("❌ Invalid gif category.", ephemeral=True)
             return
@@ -77,6 +86,9 @@ class AutoPost(commands.Cog):
     @app_commands.command(name="autopost_clip", description="Auto-post NSFW video clips every 12 seconds.")
     @app_commands.describe(category="Choose a category")
     async def autopost_clip(self, interaction: discord.Interaction, category: str):
+        if not self.is_nsfw_channel(interaction):
+            await interaction.response.send_message("❌ You can only use this command in NSFW channels.", ephemeral=True)
+            return
         if category not in NSFW_CLIP_CATEGORIES:
             await interaction.response.send_message("❌ Invalid clip category.", ephemeral=True)
             return
