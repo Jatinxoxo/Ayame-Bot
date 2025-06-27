@@ -7,115 +7,59 @@ from nsfw_data import NSFW_IMAGE_CATEGORIES, NSFW_GIF_CATEGORIES, NSFW_CLIP_CATE
 import asyncio
 
 class StopButton(discord.ui.View):
-    def __init__(self, media_type, user_id, stop_callback):
+    def __init__(self, guild_id, media_type, stop_callback):
         super().__init__(timeout=None)
+        self.guild_id = guild_id
         self.media_type = media_type
-        self.user_id = user_id
         self.stop_callback = stop_callback
 
     @discord.ui.button(label="⏹️ Stop", style=discord.ButtonStyle.red)
-    async def stop(self, interaction_button: discord.Interaction, button: discord.ui.Button):
-        if interaction_button.user.id == self.user_id:
-            await self.stop_callback(interaction_button.guild.id, self.media_type)
-            await interaction_button.response.send_message(f"⏹️ Stopped {self.media_type} autopost.", ephemeral=True)
-            self.stop()
-        else:
-            await interaction_button.response.send_message("❌ Only the user who started this autopost can stop it from here.", ephemeral=True)
-
-class AutopostStopView(discord.ui.View):
-    def __init__(self, guild_id, active_types, stop_callback):
-        super().__init__(timeout=30)
-        self.guild_id = guild_id
-        self.active_types = active_types
-        self.stop_callback = stop_callback
-
-        for media_type in active_types:
-            self.add_item(discord.ui.Button(
-                label=f"⏹️ Stop {media_type.capitalize()}",
-                style=discord.ButtonStyle.red,
-                custom_id=f"stop_{media_type}"
-            ))
-
-        self.add_item(discord.ui.Button(
-            label="🛑 Stop All",
-            style=discord.ButtonStyle.blurple,
-            custom_id="stop_all"
-        ))
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        await interaction.response.defer(ephemeral=True)
-        return True
-
-    async def on_interaction(self, interaction: discord.Interaction):
-        cid = interaction.data.get("custom_id")
-        if not cid:
-            return
-
-        try:
-            if cid == "stop_all":
-                await asyncio.gather(*(self.stop_callback(self.guild_id, mt) for mt in self.active_types))
-                await interaction.followup.send("✅ Stopped all autoposts in this server.", ephemeral=True)
-            elif cid.startswith("stop_"):
-                media_type = cid.replace("stop_", "")
-                if media_type in self.active_types:
-                    await self.stop_callback(self.guild_id, media_type)
-                    await interaction.followup.send(f"✅ Stopped {media_type} autopost.", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ Failed to stop autopost: {e}", ephemeral=True)
-
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
-        await interaction.followup.send(f"❌ View error: {error}", ephemeral=True)
+    async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.stop_callback(self.guild_id, self.media_type)
+        await interaction.response.send_message(f"✅ Stopped autoposting **{self.media_type}**.", ephemeral=True)
+        self.stop()
 
 class AutoPost(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_autoposts = {}  # { guild_id: { media_type: user_id or None } }
+        self.active_autoposts = {}  # { guild_id: { media_type: True/False } }
 
     async def stop_autopost(self, guild_id: int, media_type: str):
         if guild_id in self.active_autoposts:
-            self.active_autoposts[guild_id][media_type] = None
+            self.active_autoposts[guild_id][media_type] = False
+
+    def is_nsfw_channel(self, interaction: discord.Interaction) -> bool:
+        return isinstance(interaction.channel, discord.TextChannel) and interaction.channel.is_nsfw()
 
     async def send_autopost(self, interaction, category, fetch_func, media_type):
         guild_id = interaction.guild.id
 
-        if guild_id not in self.active_autoposts:
-            self.active_autoposts[guild_id] = {
-                "image": None,
-                "gif": None,
-                "clip": None
-            }
+        if not self.active_autoposts.get(guild_id):
+            self.active_autoposts[guild_id] = {"image": False, "gif": False, "clip": False}
 
         if self.active_autoposts[guild_id][media_type]:
-            await interaction.response.send_message(f"❌ An autopost for {media_type} is already running in this server.", ephemeral=True)
+            await interaction.response.send_message(f"❌ {media_type.capitalize()} autopost is already running in this server.", ephemeral=True)
             return
 
-        self.active_autoposts[guild_id][media_type] = interaction.user.id
-        await interaction.response.send_message(f"▶️ Started autoposting {media_type}s for category: **{category}**")
+        self.active_autoposts[guild_id][media_type] = True
+        await interaction.response.send_message(f"▶️ Started autoposting **{media_type}s** for category: **{category}**")
 
-        # FIX: check only if any user is running
-        while self.active_autoposts.get(guild_id, {}).get(media_type):
+        while self.active_autoposts[guild_id][media_type]:
             post = await fetch_func(category)
             if post:
-                embed = discord.Embed(title=post["title"], url=post.get("url"), color=discord.Color.dark_purple())
+                embed = discord.Embed(title=post.get("title", media_type.title()), url=post.get("url"), color=discord.Color.dark_purple())
                 embed.set_image(url=post["thumbnail"] if media_type == "clip" else post["url"])
-                view = StopButton(media_type, interaction.user.id, self.stop_autopost)
+                view = StopButton(guild_id, media_type, self.stop_autopost)
                 await interaction.channel.send(embed=embed, view=view)
             else:
-                await interaction.channel.send("⚠️ Failed to fetch content. Trying again in 12 seconds...")
+                await interaction.channel.send("⚠️ Failed to fetch content. Retrying in 12 seconds...")
             await asyncio.sleep(12)
-
-    def is_nsfw_channel(self, interaction: discord.Interaction) -> bool:
-        return isinstance(interaction.channel, discord.TextChannel) and interaction.channel.is_nsfw()
 
     @app_commands.command(name="autopost_image", description="Auto-post NSFW images every 12 seconds.")
     @app_commands.describe(category="Choose a category")
     async def autopost_image(self, interaction: discord.Interaction, category: str):
         if not self.is_nsfw_channel(interaction):
-            await interaction.response.send_message("❌ You can only use this command in NSFW channels.", ephemeral=True)
+            await interaction.response.send_message("❌ This command can only be used in NSFW channels.", ephemeral=True)
             return
         if category not in NSFW_IMAGE_CATEGORIES:
             await interaction.response.send_message("❌ Invalid image category.", ephemeral=True)
@@ -126,7 +70,7 @@ class AutoPost(commands.Cog):
     @app_commands.describe(category="Choose a category")
     async def autopost_gif(self, interaction: discord.Interaction, category: str):
         if not self.is_nsfw_channel(interaction):
-            await interaction.response.send_message("❌ You can only use this command in NSFW channels.", ephemeral=True)
+            await interaction.response.send_message("❌ This command can only be used in NSFW channels.", ephemeral=True)
             return
         if category not in NSFW_GIF_CATEGORIES:
             await interaction.response.send_message("❌ Invalid gif category.", ephemeral=True)
@@ -137,37 +81,24 @@ class AutoPost(commands.Cog):
     @app_commands.describe(category="Choose a category")
     async def autopost_clip(self, interaction: discord.Interaction, category: str):
         if not self.is_nsfw_channel(interaction):
-            await interaction.response.send_message("❌ You can only use this command in NSFW channels.", ephemeral=True)
+            await interaction.response.send_message("❌ This command can only be used in NSFW channels.", ephemeral=True)
             return
         if category not in NSFW_CLIP_CATEGORIES:
             await interaction.response.send_message("❌ Invalid clip category.", ephemeral=True)
             return
         asyncio.create_task(self.send_autopost(interaction, category, fetch_spankbang_video, "clip"))
 
-    @app_commands.command(name="stop_autopost", description="Stop running autoposts in this server.")
+    @app_commands.command(name="stop_autopost", description="Stop all running autoposts in this server.")
     async def stop_autopost(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
-        if guild_id not in self.active_autoposts:
-            await interaction.response.send_message("ℹ️ No autoposts are running in this server.", ephemeral=True)
-            return
-
-        running = [
-            media_type
-            for media_type, user_id in self.active_autoposts[guild_id].items()
-            if user_id is not None
-        ]
-
-        if not running:
+        if guild_id not in self.active_autoposts or not any(self.active_autoposts[guild_id].values()):
             await interaction.response.send_message("ℹ️ No autoposts are currently running in this server.", ephemeral=True)
             return
 
-        embed = discord.Embed(
-            title="⏹️ Stop Autopost",
-            description="Select which autoposts you want to stop:",
-            color=discord.Color.red()
-        )
-        view = AutopostStopView(guild_id, running, self.stop_autopost)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        for media_type in ["image", "gif", "clip"]:
+            self.active_autoposts[guild_id][media_type] = False
+
+        await interaction.response.send_message("🛑 All autoposts have been stopped for this server.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AutoPost(bot))
