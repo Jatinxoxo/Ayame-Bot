@@ -50,6 +50,7 @@ class AutoPost(commands.Cog):
                 post = await fetch_func(category)
 
                 if post:
+                    failures = 0
                     embed = discord.Embed(
                         title=post.get("title", media_type.title()),
                         url=post.get("url"),
@@ -58,15 +59,14 @@ class AutoPost(commands.Cog):
                     embed.set_image(url=post["thumbnail"] if media_type == "clip" else post["url"])
                     view = StopButton(guild_id, media_type)
                     await interaction.channel.send(embed=embed, view=view)
-                    failures = 0
                 else:
                     failures += 1
                     await interaction.channel.send("⚠️ Failed to fetch content. Retrying in 12 seconds...", delete_after=10)
 
-                if failures >= 3:
-                    await interaction.channel.send(f"⚠️ Multiple failed fetches for {media_type}. Waiting and retrying...", delete_after=10)
-                    failures = 0
-                    await asyncio.sleep(10)
+                    if failures >= 3:
+                        await interaction.channel.send(f"⚠️ Multiple failed fetches for {media_type}. Waiting and retrying...", delete_after=10)
+                        await asyncio.sleep(10)
+                        failures = 0
 
                 await asyncio.sleep(12)
 
