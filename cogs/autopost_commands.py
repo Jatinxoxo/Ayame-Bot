@@ -44,16 +44,27 @@ class AutoPost(commands.Cog):
         self.active_autoposts[guild_id][media_type] = True
         await interaction.response.send_message(f"▶️ Started autoposting **{media_type}s** for category: **{category}**")
 
+        failures = 0
         while self.active_autoposts[guild_id][media_type]:
             post = await fetch_func(category)
             if post:
+                failures = 0
                 embed = discord.Embed(title=post.get("title", media_type.title()), url=post.get("url"), color=discord.Color.dark_purple())
                 embed.set_image(url=post["thumbnail"] if media_type == "clip" else post["url"])
                 view = StopButton(guild_id, media_type)
                 await interaction.channel.send(embed=embed, view=view)
             else:
+                failures += 1
                 await interaction.channel.send("⚠️ Failed to fetch content. Retrying in 12 seconds...")
-            await asyncio.sleep(12)
+
+                if failures >= 3:
+                    await interaction.channel.send(f"⚠️ Multiple failed fetches for {media_type}. Attempting to restart...")
+                    self.active_autoposts[guild_id][media_type] = False
+                    await asyncio.sleep(5)
+                    self.active_autoposts[guild_id][media_type] = True
+                    failures = 0
+
+                await asyncio.sleep(12)
 
     @app_commands.command(name="autopost_image", description="Auto-post NSFW images every 12 seconds.")
     @app_commands.describe(category="Choose a category")
