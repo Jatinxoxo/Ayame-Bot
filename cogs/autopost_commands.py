@@ -17,14 +17,17 @@ class StopButton(discord.ui.View):
     async def stop(self, interaction_button: discord.Interaction, button: discord.ui.Button):
         if interaction_button.user.id == self.user_id:
             await self.stop_callback(interaction_button.guild.id, self.media_type)
+            await interaction_button.response.send_message(f"⏹️ Stopped {self.media_type} autopost.", ephemeral=True)
             self.stop()
+        else:
+            await interaction_button.response.send_message("❌ Only the user who started this autopost can stop it from here.", ephemeral=True)
 
 class AutopostStopView(discord.ui.View):
     def __init__(self, guild_id, active_types, stop_callback):
         super().__init__(timeout=30)
         self.guild_id = guild_id
-        self.stop_callback = stop_callback
         self.active_types = active_types
+        self.stop_callback = stop_callback
 
         for media_type in active_types:
             self.add_item(discord.ui.Button(
@@ -48,31 +51,29 @@ class AutopostStopView(discord.ui.View):
         if not cid:
             return
 
-        if cid == "stop_all":
-            # Stop everything immediately
-            tasks = [
-                self.stop_callback(self.guild_id, mt)
-                for mt in self.active_types
-            ]
-            await asyncio.gather(*tasks)
-            await interaction.followup.send("✅ All autoposts have been stopped.", ephemeral=True)
-        elif cid.startswith("stop_"):
-            media_type = cid.replace("stop_", "")
-            if media_type in self.active_types:
-                await self.stop_callback(self.guild_id, media_type)
-                await interaction.followup.send(f"✅ Stopped {media_type} autopost.", ephemeral=True)
+        try:
+            if cid == "stop_all":
+                await asyncio.gather(*(self.stop_callback(self.guild_id, mt) for mt in self.active_types))
+                await interaction.followup.send("✅ Stopped all autoposts in this server.", ephemeral=True)
+            elif cid.startswith("stop_"):
+                media_type = cid.replace("stop_", "")
+                if media_type in self.active_types:
+                    await self.stop_callback(self.guild_id, media_type)
+                    await interaction.followup.send(f"✅ Stopped {media_type} autopost.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Failed to stop autopost: {e}", ephemeral=True)
 
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
-        await interaction.followup.send(f"❌ Error: {error}", ephemeral=True)
+        await interaction.followup.send(f"❌ View error: {error}", ephemeral=True)
 
 class AutoPost(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_autoposts = {}  # { guild_id: { "image": user_id, "gif": user_id, "clip": user_id } }
+        self.active_autoposts = {}  # { guild_id: { media_type: user_id or None } }
 
     async def stop_autopost(self, guild_id: int, media_type: str):
         if guild_id in self.active_autoposts:
@@ -95,7 +96,8 @@ class AutoPost(commands.Cog):
         self.active_autoposts[guild_id][media_type] = interaction.user.id
         await interaction.response.send_message(f"▶️ Started autoposting {media_type}s for category: **{category}**")
 
-        while self.active_autoposts[guild_id][media_type] == interaction.user.id:
+        # FIX: check only if any user is running
+        while self.active_autoposts.get(guild_id, {}).get(media_type):
             post = await fetch_func(category)
             if post:
                 embed = discord.Embed(title=post["title"], url=post.get("url"), color=discord.Color.dark_purple())
