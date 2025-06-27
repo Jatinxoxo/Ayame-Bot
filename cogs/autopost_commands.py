@@ -16,31 +16,38 @@ class StopButton(discord.ui.View):
     @discord.ui.button(label="⏹️ Stop", style=discord.ButtonStyle.red)
     async def stop(self, interaction_button: discord.Interaction, button: discord.ui.Button):
         if interaction_button.user.id == self.user_id:
-            await self.stop_callback(interaction_button, self.media_type)
+            await self.stop_callback(interaction_button.guild.id, self.media_type)
             self.stop()
 
 class AutoPost(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_autoposts = {
-            "image": None,
-            "gif": None,
-            "clip": None
-        }
+        # Now tracking autoposts per server (guild)
+        self.active_autoposts = {}  # { guild_id: { "image": user_id, "gif": user_id, "clip": user_id } }
 
-    async def stop_autopost(self, interaction: discord.Interaction, media_type: str):
-        self.active_autoposts[media_type] = None
-        await interaction.response.send_message("⏹️ Autopost stopped.", ephemeral=True)
+    async def stop_autopost(self, guild_id: int, media_type: str):
+        if guild_id in self.active_autoposts:
+            self.active_autoposts[guild_id][media_type] = None
 
     async def send_autopost(self, interaction, category, fetch_func, media_type):
-        if self.active_autoposts[media_type]:
-            await interaction.response.send_message(f"❌ An autopost for {media_type} is already running.", ephemeral=True)
+        guild_id = interaction.guild.id
+
+        # Initialize server entry if missing
+        if guild_id not in self.active_autoposts:
+            self.active_autoposts[guild_id] = {
+                "image": None,
+                "gif": None,
+                "clip": None
+            }
+
+        if self.active_autoposts[guild_id][media_type]:
+            await interaction.response.send_message(f"❌ An autopost for {media_type} is already running in this server.", ephemeral=True)
             return
 
-        self.active_autoposts[media_type] = interaction.user.id
+        self.active_autoposts[guild_id][media_type] = interaction.user.id
         await interaction.response.send_message(f"▶️ Started autoposting {media_type}s for category: **{category}**")
 
-        while self.active_autoposts[media_type] == interaction.user.id:
+        while self.active_autoposts[guild_id][media_type] == interaction.user.id:
             post = await fetch_func(category)
             if post:
                 embed = discord.Embed(title=post["title"], url=post.get("url"), color=discord.Color.dark_purple())
