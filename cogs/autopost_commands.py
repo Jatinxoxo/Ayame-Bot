@@ -19,6 +19,27 @@ class StopButton(discord.ui.View):
             await self.stop_callback(interaction_button.guild.id, self.media_type)
             self.stop()
 
+class AutopostStopView(discord.ui.View):
+    def __init__(self, guild_id, active_types, stop_callback):
+        super().__init__(timeout=30)
+        self.guild_id = guild_id
+        self.stop_callback = stop_callback
+        for media_type in active_types:
+            label = f"⏹️ Stop {media_type.capitalize()}"
+            self.add_item(AutopostStopButton(label, media_type, self.stop_callback, self.guild_id))
+
+class AutopostStopButton(discord.ui.Button):
+    def __init__(self, label, media_type, stop_callback, guild_id):
+        super().__init__(label=label, style=discord.ButtonStyle.red)
+        self.media_type = media_type
+        self.stop_callback = stop_callback
+        self.guild_id = guild_id
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.stop_callback(self.guild_id, self.media_type)
+        await interaction.response.send_message(f"✅ Stopped autoposting **{self.media_type}s**.", ephemeral=True)
+        self.view.stop()
+
 class AutoPost(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -93,6 +114,31 @@ class AutoPost(commands.Cog):
             await interaction.response.send_message("❌ Invalid clip category.", ephemeral=True)
             return
         asyncio.create_task(self.send_autopost(interaction, category, fetch_spankbang_video, "clip"))
+
+    @app_commands.command(name="stop_autopost", description="Stop running autoposts in this server.")
+    async def stop_autopost(self, interaction: discord.Interaction):
+        guild_id = interaction.guild.id
+        if guild_id not in self.active_autoposts:
+            await interaction.response.send_message("ℹ️ No autoposts are running in this server.", ephemeral=True)
+            return
+
+        running = [
+            media_type
+            for media_type, user_id in self.active_autoposts[guild_id].items()
+            if user_id is not None
+        ]
+
+        if not running:
+            await interaction.response.send_message("ℹ️ No autoposts are currently running in this server.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="⏹️ Stop Autopost",
+            description="Select which autoposts you want to stop:",
+            color=discord.Color.red()
+        )
+        view = AutopostStopView(guild_id, running, self.stop_autopost)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AutoPost(bot))
