@@ -30,6 +30,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     await bot.tree.sync()
+
+    # Register persistent views
+    from cogs.autopost_commands import StopButton
+    for media_type in ["image", "gif", "clip"]:
+        bot.add_view(StopButton(guild_id=0, media_type=media_type))
+
     await bot.change_presence(
         activity=discord.Streaming(
             name="AkariX",
@@ -37,6 +43,7 @@ async def on_ready():
         )
     )
     print(f"✅ Logged in as {bot.user} and commands synced.")
+
 
 # Main async loop
 async def main():
