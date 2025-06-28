@@ -2,6 +2,10 @@ import os
 import asyncio
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv  # Add this import
+
+# Load .env file (for local development)
+load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
