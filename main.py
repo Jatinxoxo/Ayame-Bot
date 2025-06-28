@@ -38,7 +38,7 @@ async def on_ready():
 
     await bot.change_presence(
         activity=discord.Streaming(
-            name="touch me with your prefix!",
+            name="slash me daddy",
             url="https://twitch.tv/Mommyvideos",  # Replace with actual stream
         )
     )
