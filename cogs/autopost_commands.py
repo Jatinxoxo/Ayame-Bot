@@ -22,7 +22,6 @@ class StopButton(discord.ui.View):
 class AutoPost(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # 🆕 Now tracking active autoposts per guild
         self.active_autoposts = {
             "image": {},
             "gif": {},
@@ -53,7 +52,10 @@ class AutoPost(commands.Cog):
                 else:
                     await interaction.channel.send(embed=embed)
             else:
-                await interaction.channel.send("⚠️ Failed to fetch content. Trying again in 12 seconds...")
+                await interaction.channel.send(
+                    "⚠️ Failed to fetch content. Trying again in 12 seconds...",
+                    delete_after=10
+                )
 
             await asyncio.sleep(12)
 

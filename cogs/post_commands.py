@@ -9,7 +9,7 @@ class PostCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="post_image", description="Post a random NSFW image from a selected category.")
+    @app_commands.command(name="post_image", description="Post a single NSFW image from a chosen category.")
     @app_commands.describe(category="Choose a category")
     async def post_image(self, interaction: discord.Interaction, category: str):
         if category not in NSFW_IMAGE_CATEGORIES:
@@ -18,15 +18,14 @@ class PostCommands(commands.Cog):
 
         await interaction.response.defer()
         post = await fetch_image(category)
-        if not post:
-            await interaction.followup.send("❌ No image found.")
-            return
+        if post:
+            embed = discord.Embed(title=post["title"], url=post["url"], color=discord.Color.magenta())
+            embed.set_image(url=post["url"])
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send("⚠️ Failed to fetch image.", delete_after=10)
 
-        embed = discord.Embed(title=post["title"], color=discord.Color.dark_purple())
-        embed.set_image(url=post["url"])
-        await interaction.followup.send(embed=embed)
-
-    @app_commands.command(name="post_gif", description="Post a random NSFW gif from a selected category.")
+    @app_commands.command(name="post_gif", description="Post a single NSFW gif from a chosen category.")
     @app_commands.describe(category="Choose a category")
     async def post_gif(self, interaction: discord.Interaction, category: str):
         if category not in NSFW_GIF_CATEGORIES:
@@ -35,15 +34,14 @@ class PostCommands(commands.Cog):
 
         await interaction.response.defer()
         post = await fetch_gif(category)
-        if not post:
-            await interaction.followup.send("❌ No gif found.")
-            return
+        if post:
+            embed = discord.Embed(title=post["title"], url=post["url"], color=discord.Color.orange())
+            embed.set_image(url=post["url"])
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send("⚠️ Failed to fetch gif.", delete_after=10)
 
-        embed = discord.Embed(title=post["title"], color=discord.Color.dark_purple())
-        embed.set_image(url=post["url"])
-        await interaction.followup.send(embed=embed)
-
-    @app_commands.command(name="post_clip", description="Post a random NSFW video clip from a selected category.")
+    @app_commands.command(name="post_clip", description="Post a single NSFW clip from a chosen category.")
     @app_commands.describe(category="Choose a category")
     async def post_clip(self, interaction: discord.Interaction, category: str):
         if category not in NSFW_CLIP_CATEGORIES:
@@ -52,13 +50,25 @@ class PostCommands(commands.Cog):
 
         await interaction.response.defer()
         post = await fetch_spankbang_video(category)
-        if not post:
-            await interaction.followup.send("❌ No clip found. It may have timed out or returned no content.")
-            return
+        if post:
+            embed = discord.Embed(title=post["title"], url=post["url"], color=discord.Color.red())
+            embed.set_image(url=post["thumbnail"])
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send("⚠️ Failed to fetch clip.", delete_after=10)
 
-        embed = discord.Embed(title=post["title"], url=post["url"], color=discord.Color.dark_purple())
-        embed.set_image(url=post["thumbnail"])
-        await interaction.followup.send(embed=embed)
+    @app_commands.command(name="list", description="List all available NSFW categories.")
+    async def list_categories(self, interaction: discord.Interaction):
+        image_cats = ", ".join(NSFW_IMAGE_CATEGORIES)
+        gif_cats = ", ".join(NSFW_GIF_CATEGORIES)
+        clip_cats = ", ".join(NSFW_CLIP_CATEGORIES)
+
+        embed = discord.Embed(title="📂 NSFW Categories", color=discord.Color.blue())
+        embed.add_field(name="🖼️ Images", value=image_cats or "None", inline=False)
+        embed.add_field(name="🎞️ GIFs", value=gif_cats or "None", inline=False)
+        embed.add_field(name="📹 Clips", value=clip_cats or "None", inline=False)
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(PostCommands(bot))
