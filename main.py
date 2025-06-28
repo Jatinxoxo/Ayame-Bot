@@ -10,6 +10,10 @@ load_dotenv()
 # Get bot token from environment
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+if not BOT_TOKEN or BOT_TOKEN == "your-token-here":
+    raise ValueError("🚫 BOT_TOKEN is missing! Please set it in your environment or Railway dashboard.")
+
+
 # Intents
 intents = discord.Intents.default()
 intents.message_content = True
