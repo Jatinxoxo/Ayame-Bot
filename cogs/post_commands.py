@@ -1,8 +1,10 @@
+# cogs/post_commands.py
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 from scraper import fetch_image, fetch_gif
-from spankbang_fetcher import fetch_spankbang_video
+from eporner_fetcher import fetch_eporner_video
 from nsfw_data import NSFW_IMAGE_CATEGORIES, NSFW_GIF_CATEGORIES, NSFW_CLIP_CATEGORIES
 
 class PostCommands(commands.Cog):
@@ -12,6 +14,10 @@ class PostCommands(commands.Cog):
     @app_commands.command(name="post_image", description="Post a single NSFW image from a chosen category.")
     @app_commands.describe(category="Choose a category")
     async def post_image(self, interaction: discord.Interaction, category: str):
+        if not interaction.channel.is_nsfw():
+            await interaction.response.send_message("🚫 This command can only be used in NSFW channels.", ephemeral=True)
+            return
+
         if category not in NSFW_IMAGE_CATEGORIES:
             await interaction.response.send_message("❌ Invalid image category.", ephemeral=True)
             return
@@ -28,6 +34,10 @@ class PostCommands(commands.Cog):
     @app_commands.command(name="post_gif", description="Post a single NSFW gif from a chosen category.")
     @app_commands.describe(category="Choose a category")
     async def post_gif(self, interaction: discord.Interaction, category: str):
+        if not interaction.channel.is_nsfw():
+            await interaction.response.send_message("🚫 This command can only be used in NSFW channels.", ephemeral=True)
+            return
+
         if category not in NSFW_GIF_CATEGORIES:
             await interaction.response.send_message("❌ Invalid gif category.", ephemeral=True)
             return
@@ -41,18 +51,31 @@ class PostCommands(commands.Cog):
         else:
             await interaction.followup.send("⚠️ Failed to fetch gif.", delete_after=10)
 
-    @app_commands.command(name="post_clip", description="Post a single NSFW clip from a chosen category.")
+    @app_commands.command(name="post_clip", description="Post a full NSFW video from a chosen category.")
     @app_commands.describe(category="Choose a category")
     async def post_clip(self, interaction: discord.Interaction, category: str):
+        if not interaction.channel.is_nsfw():
+            await interaction.response.send_message("🚫 This command can only be used in NSFW channels.", ephemeral=True)
+            return
+
         if category not in NSFW_CLIP_CATEGORIES:
             await interaction.response.send_message("❌ Invalid clip category.", ephemeral=True)
             return
 
         await interaction.response.defer()
-        post = await fetch_spankbang_video(category)
+        post = await fetch_eporner_video(category)
         if post:
-            embed = discord.Embed(title=post["title"], url=post["url"], color=discord.Color.red())
-            embed.set_image(url=post["thumbnail"])
+            embed = discord.Embed(
+                title=f"{post['title']} ({post['duration']} min)",
+                url=post["url"],
+                color=discord.Color.red()
+            )
+
+            video_url = post.get("url") or ""
+            thumbnail_url = post.get("thumbnail") or "https://cdn.discordapp.com/embed/404.png"
+            preview_url = video_url if video_url.endswith(".mp4") else thumbnail_url
+
+            embed.set_image(url=preview_url)
             await interaction.followup.send(embed=embed)
         else:
             await interaction.followup.send("⚠️ Failed to fetch clip.", delete_after=10)
