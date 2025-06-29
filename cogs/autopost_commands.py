@@ -8,23 +8,24 @@ from eporner_fetcher import fetch_eporner_video
 from nsfw_data import NSFW_IMAGE_CATEGORIES, NSFW_GIF_CATEGORIES, NSFW_CLIP_CATEGORIES
 
 class AutoPostButton(discord.ui.View):
-    def __init__(self, media_type: str, category: str, user_id: int, fetch_func, stop_callback):
+    def __init__(self, media_type: str, category: str, user_id: int, fetch_func):
         super().__init__(timeout=180)  # View expires in 3 minutes
         self.media_type = media_type
         self.category = category
         self.user_id = user_id
         self.fetch_func = fetch_func
-        self.stop_callback = stop_callback
 
-    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.blurple)
+    @discord.ui.button(label="⟳", style=discord.ButtonStyle.blurple)
     async def next(self, interaction_button: discord.Interaction, button: discord.ui.Button):
         if interaction_button.user.id != self.user_id:
-            await interaction_button.response.send_message("❌ Only the user who started the autopost can fetch next content.", ephemeral=True)
+            await interaction_button.response.send_message("❌ Only the user who started the autopost can fetch the next content.", ephemeral=True)
             return
+
+        await interaction_button.response.defer(thinking=False)  # Prevents "interaction failed" message
 
         post = await self.fetch_func(self.category)
         if not post:
-            await interaction_button.response.send_message("⚠️ Failed to fetch content. Try again.", ephemeral=True)
+            await interaction_button.followup.send("⚠️ Failed to fetch content. Try again.", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -41,15 +42,6 @@ class AutoPostButton(discord.ui.View):
         embed.set_image(url=preview_url)
         await interaction_button.channel.send(embed=embed, view=self)
 
-    @discord.ui.button(label="⏹️ Stop", style=discord.ButtonStyle.red)
-    async def stop(self, interaction_button: discord.Interaction, button: discord.ui.Button):
-        if interaction_button.user.id != self.user_id:
-            await interaction_button.response.send_message("❌ Only the user who started the autopost can stop it.", ephemeral=True)
-            return
-
-        await self.stop_callback(interaction_button, self.media_type)
-        await interaction_button.response.send_message(f"⏹️ Autopost for **{self.media_type}** stopped in this channel.", ephemeral=True)
-        self.stop()
 
 class AutoPost(commands.Cog):
     def __init__(self, bot):
@@ -75,10 +67,10 @@ class AutoPost(commands.Cog):
             return
 
         self.active_autoposts[media_type][channel_id] = interaction.user.id
-        await interaction.followup.send(f"▶️ Started manual autoposting for **{media_type}** category: **{category}**", ephemeral=True)
+        await interaction.followup.send(f"▶️ Manual post enabled for **{media_type}** category: **{category}**", ephemeral=True)
 
-        view = AutoPostButton(media_type, category, interaction.user.id, fetch_func, self.stop_autopost)
-        await interaction.channel.send(content=f"🖱️ Click **Next** to post a {media_type} from category **{category}**", view=view)
+        view = AutoPostButton(media_type, category, interaction.user.id, fetch_func)
+        await interaction.channel.send(content=f"🖱️ Click ⟳ to post the next **{media_type}** from **{category}**", view=view)
 
     @app_commands.command(name="autopost_image", description="Auto-post NSFW images (click to fetch next).")
     @app_commands.describe(category="Choose a category")
