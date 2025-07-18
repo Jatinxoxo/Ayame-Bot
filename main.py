@@ -1,8 +1,16 @@
+import os
 import discord
 from discord.ext import commands, tasks
 import random
 import pytz
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN is missing from environment variables.")
 
 intents = discord.Intents.default()
 intents.members = True
@@ -23,15 +31,13 @@ STATUS_MESSAGES = [
 ]
 
 def get_total_members():
-    return sum(guild.member_count for guild in bot.guilds)
+    return sum(guild.member_count or 0 for guild in bot.guilds)
 
 def get_total_online():
-    count = 0
-    for guild in bot.guilds:
-        for member in guild.members:
-            if member.status != discord.Status.offline:
-                count += 1
-    return count
+    return sum(
+        1 for guild in bot.guilds for member in guild.members
+        if member.status != discord.Status.offline
+    )
 
 def get_tokyo_time():
     tz = pytz.timezone('Asia/Tokyo')
@@ -55,4 +61,4 @@ async def on_ready():
     print(f"🤖 Logged in as {bot.user} (ID: {bot.user.id})")
     update_status.start()
 
-bot.run('YOUR_TOKEN')
+bot.run(BOT_TOKEN)
