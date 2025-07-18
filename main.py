@@ -4,6 +4,8 @@ import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import itertools
+import datetime
+import random
 
 # Load environment
 load_dotenv()
@@ -14,45 +16,46 @@ if not BOT_TOKEN:
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
-intents.members = True  # ✅ Needed for member stats
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 status_messages = itertools.cycle([])
+start_time = datetime.datetime.utcnow()
+
+def get_uptime():
+    delta = datetime.datetime.utcnow() - start_time
+    hours, remainder = divmod(int(delta.total_seconds()), 3600)
+    minutes, _ = divmod(remainder, 60)
+    return f"{hours}h {minutes}m"
+
+def get_japan_time():
+    jst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+    return jst.strftime("%I:%M %p")
+
+def update_status_messages():
+    global status_messages
+    status_messages = itertools.cycle([
+        f"⏳ Uptime: {get_uptime()}",
+        f"🍥 In {len(bot.guilds)} servers",
+        f"🕒 Tokyo: {get_japan_time()}",
+        f"🎴 {random.choice(['Believe in you', 'Eat the mochi', 'Blossom now', 'Ramen > Everything'])}",
+        f"{random.choice(['🌕', '🌗', '🌘', '🌑'])} Anime time",
+        f"💻 Code. Deploy. Repeat.",
+        f"🌀 Summoning new vibes",
+        f"📦 Packing chakra"
+    ])
 
 @bot.event
 async def on_ready():
     print(f"🤖 Logged in as {bot.user} (ID: {bot.user.id})")
-    await bot.wait_until_ready()  # ✅ Ensure cache is ready
+    await bot.wait_until_ready()
     update_status_messages()
     update_presence.start()
-
-def update_status_messages():
-    total_members = 0
-    online_members = 0
-    total_boosts = 0
-    highest_tier = 0
-
-    for guild in bot.guilds:
-        total_members += guild.member_count or 0
-        online_members += sum(1 for m in guild.members if m.status != discord.Status.offline)
-        total_boosts += guild.premium_subscription_count or 0
-        highest_tier = max(highest_tier, guild.premium_tier)
-
-    global status_messages
-    status_messages = itertools.cycle([
-        f"🌸 Blossoming with {total_members} petals",
-        f"✨ {online_members} kawaii souls online",
-        f"🔮 Boosted by {total_boosts} stars",
-        f"🌌 Highest Guild Tier: {highest_tier}",
-        f"🎐 Watching the multiverse grow...",
-        f"🍥 Across {len(bot.guilds)} guilds!",
-        f"🎴 {online_members} ninjas meditating"
-    ])
 
 @tasks.loop(seconds=60)
 async def update_presence():
     try:
+        update_status_messages()  # Refresh values like uptime/time
         next_status = next(status_messages)
         activity = discord.Activity(type=discord.ActivityType.watching, name=next_status)
         await bot.change_presence(status=discord.Status.online, activity=activity)
