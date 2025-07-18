@@ -1,53 +1,53 @@
 import os
 import asyncio
 import discord
-from discord.ext import commands, tasks  # ✅ Fixed: imported tasks
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import itertools
 
-# Load .env file (for local development)
+# Load environment
 load_dotenv()
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 if not BOT_TOKEN:
-    raise ValueError("❌ BOT_TOKEN is missing! Please set it in your environment or Railway dashboard.")
+    raise ValueError("❌ BOT_TOKEN is missing!")
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
-intents.members = True
+intents.members = True  # ✅ Needed for member stats
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Placeholder for messages to rotate
 status_messages = itertools.cycle([])
 
 @bot.event
 async def on_ready():
     print(f"🤖 Logged in as {bot.user} (ID: {bot.user.id})")
+    await bot.wait_until_ready()  # ✅ Ensure cache is ready
     update_status_messages()
     update_presence.start()
 
 def update_status_messages():
-    guild = discord.utils.get(bot.guilds)
-    if not guild:
-        return
+    total_members = 0
+    online_members = 0
+    total_boosts = 0
+    highest_tier = 0
 
-    total = guild.member_count
-    online = sum(1 for m in guild.members if m.status != discord.Status.offline)
-    boosts = guild.premium_subscription_count
-    tier = guild.premium_tier
+    for guild in bot.guilds:
+        total_members += guild.member_count or 0
+        online_members += sum(1 for m in guild.members if m.status != discord.Status.offline)
+        total_boosts += guild.premium_subscription_count or 0
+        highest_tier = max(highest_tier, guild.premium_tier)
 
     global status_messages
     status_messages = itertools.cycle([
-        f"🌸 Blossoming with {total} petals",
-        f"✨ {online} kawaii souls online",
-        f"🔮 Boosted by {boosts} stars",
-        f"🌌 Yugen Orb: Tier {tier} ascension",
-        f"🎐 Watching the realm grow...",
-        f"🍥 Breathing with {total} members",
-        f"🎴 {online} ninjas meditating now"
+        f"🌸 Blossoming with {total_members} petals",
+        f"✨ {online_members} kawaii souls online",
+        f"🔮 Boosted by {total_boosts} stars",
+        f"🌌 Highest Guild Tier: {highest_tier}",
+        f"🎐 Watching the multiverse grow...",
+        f"🍥 Across {len(bot.guilds)} guilds!",
+        f"🎴 {online_members} ninjas meditating"
     ])
 
 @tasks.loop(seconds=60)
