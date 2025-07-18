@@ -5,7 +5,7 @@ from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import itertools
 import datetime
-import random
+import pytz
 
 # Load environment
 load_dotenv()
@@ -16,34 +16,12 @@ if not BOT_TOKEN:
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 status_messages = itertools.cycle([])
 start_time = datetime.datetime.utcnow()
-
-def get_uptime():
-    delta = datetime.datetime.utcnow() - start_time
-    hours, remainder = divmod(int(delta.total_seconds()), 3600)
-    minutes, _ = divmod(remainder, 60)
-    return f"{hours}h {minutes}m"
-
-def get_japan_time():
-    jst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
-    return jst.strftime("%I:%M %p")
-
-def update_status_messages():
-    global status_messages
-    status_messages = itertools.cycle([
-        f"⏳ Uptime: {get_uptime()}",
-        f"🍥 In {len(bot.guilds)} servers",
-        f"🕒 Tokyo: {get_japan_time()}",
-        f"🎴 {random.choice(['Believe in you', 'Eat the mochi', 'Blossom now', 'Ramen > Everything'])}",
-        f"{random.choice(['🌕', '🌗', '🌘', '🌑'])} Anime time",
-        f"💻 Code. Deploy. Repeat.",
-        f"🌀 Summoning new vibes",
-        f"📦 Packing chakra"
-    ])
 
 @bot.event
 async def on_ready():
@@ -52,10 +30,41 @@ async def on_ready():
     update_status_messages()
     update_presence.start()
 
+def format_uptime():
+    delta = datetime.datetime.utcnow() - start_time
+    days = delta.days
+    hours, rem = divmod(delta.seconds, 3600)
+    minutes = rem // 60
+    if days > 0:
+        return f"{days}d {hours}h {minutes}m"
+    elif hours > 0:
+        return f"{hours}h {minutes}m"
+    else:
+        return f"{minutes}m"
+
+def update_status_messages():
+    total_members = sum(g.member_count or 0 for g in bot.guilds)
+    online_members = sum(1 for g in bot.guilds for m in g.members if m.status != discord.Status.offline)
+    tokyo_time = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%I:%M %p")
+    total_guilds = len(bot.guilds)
+    highest_tier = max((g.premium_tier for g in bot.guilds), default=0)
+
+    global status_messages
+    status_messages = itertools.cycle([
+        f"⏳ Uptime: {format_uptime()}",
+        f"🌸 {total_members} members",
+        f"✨ {online_members} online",
+        f"🍥 {total_guilds} servers",
+        f"🌌 Tier {highest_tier}",
+        f"🕒 Tokyo: {tokyo_time}",
+        "🎴 Eat the mochi",
+        "🌘 Anime time"
+    ])
+
 @tasks.loop(seconds=60)
 async def update_presence():
     try:
-        update_status_messages()  # Refresh values like uptime/time
+        update_status_messages()
         next_status = next(status_messages)
         activity = discord.Activity(type=discord.ActivityType.watching, name=next_status)
         await bot.change_presence(status=discord.Status.online, activity=activity)
