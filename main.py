@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import itertools
-import datetime
+from datetime import datetime
 import pytz
 
 # Load environment
@@ -20,8 +20,8 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+start_time = datetime.utcnow()
 status_messages = itertools.cycle([])
-start_time = datetime.datetime.utcnow()
 
 @bot.event
 async def on_ready():
@@ -30,35 +30,39 @@ async def on_ready():
     update_status_messages()
     update_presence.start()
 
-def format_uptime():
-    delta = datetime.datetime.utcnow() - start_time
-    days = delta.days
-    hours, rem = divmod(delta.seconds, 3600)
-    minutes = rem // 60
-    if days > 0:
-        return f"{days}d {hours}h {minutes}m"
-    elif hours > 0:
-        return f"{hours}h {minutes}m"
-    else:
-        return f"{minutes}m"
+def get_uptime():
+    delta = datetime.utcnow() - start_time
+    days, seconds = delta.days, delta.seconds
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    return ' '.join(parts) or "0m"
+
+def get_tokyo_time():
+    tz = pytz.timezone('Asia/Tokyo')
+    return datetime.now(tz).strftime('%I:%M %p')
 
 def update_status_messages():
-    total_members = sum(g.member_count or 0 for g in bot.guilds)
-    online_members = sum(1 for g in bot.guilds for m in g.members if m.status != discord.Status.offline)
-    tokyo_time = datetime.datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%I:%M %p")
-    total_guilds = len(bot.guilds)
-    highest_tier = max((g.premium_tier for g in bot.guilds), default=0)
+    total_members = sum(guild.member_count or 0 for guild in bot.guilds)
+    online_members = sum(1 for guild in bot.guilds for m in guild.members if m.status != discord.Status.offline)
+    total_servers = len(bot.guilds)
 
     global status_messages
     status_messages = itertools.cycle([
-        f"⏳ Uptime: {format_uptime()}",
+        f"⏳ Uptime: {get_uptime()}",
         f"🌸 {total_members} members",
         f"✨ {online_members} online",
-        f"🍥 {total_guilds} servers",
-        f"🌌 Tier {highest_tier}",
-        f"🕒 Tokyo: {tokyo_time}",
-        "🎴 Eat the mochi",
-        "🌘 Anime time"
+        f"🍥 {total_servers} servers",
+        f"🌌 Tier 3",
+        f"🕒 Tokyo: {get_tokyo_time()}",
+        f"🎴 Eat the mochi",
+        f"🌘 Anime time"
     ])
 
 @tasks.loop(seconds=60)
